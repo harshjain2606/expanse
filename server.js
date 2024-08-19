@@ -11,14 +11,11 @@ connectDb();
 
 //rest object
 const app = express();
+app.use(cors());
 
 //middlewares
 app.use(morgan("dev"));
 app.use(express.json());
-app.use(cors({
-  origin: "http://localhost:3000",
-  method: ['GET', 'POST']
-}));
 
 //routes
 app.use("/api/v1/users", require("./routes/userRoute"));

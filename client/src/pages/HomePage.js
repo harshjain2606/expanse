@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { Form, Input, message, Modal, Select, Table, DatePicker } from "antd";
+import {
+  UnorderedListOutlined,
+  AreaChartOutlined,
+  EditOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
 import Layout from "./../components/Layout/Layout";
 import axios from "axios";
 import Spinner from "./../components/Spinner";
-
+import Analytics from "../components/Analytics";
+import moment from "moment";
 const { RangePicker } = DatePicker;
 
 const HomePage = () => {
@@ -13,13 +20,15 @@ const HomePage = () => {
   const [frequency, setFrequency] = useState("7");
   const [selectedDate, setSelectedate] = useState([]);
   const [type, setType] = useState("all");
+  const [viewData, setViewData] = useState("table");
+  const [editable, setEditable] = useState(null);
 
   //table data
   const columns = [
     {
       title: "Date",
       dataIndex: "date",
-     
+      render: (text) => <span>{moment(text).format("YYYY-MM-DD")}</span>,
     },
     {
       title: "Amount",
@@ -39,6 +48,22 @@ const HomePage = () => {
     },
     {
       title: "Actions",
+      render: (text, record) => (
+        <div>
+          <EditOutlined
+            onClick={() => {
+              setEditable(record);
+              setShowModal(true);
+            }}
+          />
+          <DeleteOutlined
+            className="mx-2"
+            onClick={() => {
+              handleDelete(record);
+            }}
+          />
+        </div>
+      ),
     },
   ];
 
@@ -49,61 +74,60 @@ const HomePage = () => {
     const getAllTransactions = async () => {
       try {
         const user = JSON.parse(localStorage.getItem("user"));
-  
-        if (!user || !user._id) {
-          throw new Error("User not found or missing _id in localStorage");
-        }
-  
         setLoading(true);
-  
         const res = await axios.post("/transections/get-transection", {
           userid: user._id,
           frequency,
           selectedDate,
           type,
         });
-  
         setLoading(false);
         setAllTransection(res.data);
         console.log(res.data);
       } catch (error) {
-        setLoading(false);
-        console.error("Axios Error:", error);
-  
-        // If you want more details:
-        if (error.response) {
-          // Server responded with a status other than 200 range
-          console.error("Response data:", error.response.data);
-          console.error("Response status:", error.response.status);
-          console.error("Response headers:", error.response.headers);
-        } else if (error.request) {
-          // Request was made but no response received
-          console.error("Request data:", error.request);
-        } else {
-          // Something else caused the error
-          console.error("Error message:", error.message);
-        }
-  
-        message.error("Fetch Issue With Transaction");
+        console.log(error);
+        message.error("Ftech Issue With Tranction");
       }
     };
-  
     getAllTransactions();
-  }, [frequency, selectedDate, type]); // Make sure dependencies are correct
-  
+  }, [frequency, selectedDate, type]);
+
+   //delete handler
+  const handleDelete = async (record) => {
+    try {
+      setLoading(true);
+      await axios.post("/transections/delete-transection", {
+        transacationId: record._id,
+      });
+      setLoading(false);
+      message.success("Transaction Deleted!");
+    } catch (error) {
+      setLoading(false);
+      console.log(error);
+      message.error("unable to delete");
+    }
+  };
 
   // form handling
   const handleSubmit = async (values) => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
       setLoading(true);
-      await axios.post("http://localhost:8080/api/v1/transections/add-transection", {
-        ...values,
-        userid: user._id,
+     if (editable) {
+      await axios.post("/transections/edit-transection", {
+        payload: {
+          ...values,
+          userId: user._id,
+        },
+        transacationId: editable._id,
       });
       setLoading(false);
-      message.success("Transaction Added Successfully");
+      message.success("Transaction updated Successfully");
+     } else {
+      
+     }
       setShowModal(false);
+      setEditable(null);
     } catch (error) {
       setLoading(false);
       message.error("Faild to add transection");
@@ -143,6 +167,20 @@ const HomePage = () => {
             />
           )}
         </div>
+        <div className=" switch-icons">
+          <UnorderedListOutlined
+            className={`mx-2 ${
+              viewData === "table" ? "active-icon" : "inactive-icon"
+            }`}
+            onClick={() => setViewData("table")}
+          />
+          <AreaChartOutlined
+            className={`mx-2 ${
+              viewData === "analytics" ? "active-icon" : "inactive-icon"
+            }`}
+            onClick={() => setViewData("analytics")}
+          />
+        </div>
         <div>
           <button
             className="btn btn-primary"
@@ -153,15 +191,23 @@ const HomePage = () => {
         </div>
       </div>
       <div className="content">
-        <Table columns={columns} dataSource={allTransection} />
+        {viewData === "table" ? (
+          <Table columns={columns} dataSource={allTransection} />
+        ) : (
+          <Analytics allTransection={allTransection} />
+        )}
       </div>
       <Modal
-        title="Add Transection"
+        title={editable ? "Edit Transaction" : "Add Transection"}
         open={showModal}
         onCancel={() => setShowModal(false)}
         footer={false}
       >
-        <Form layout="vertical" onFinish={handleSubmit}>
+        <Form
+          layout="vertical"
+          onFinish={handleSubmit}
+          initialValues={editable}
+        >
           <Form.Item label="Amount" name="amount">
             <Input type="text" />
           </Form.Item>
